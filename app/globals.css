@@ -93,6 +93,10 @@ h1 { margin:0; font-family:Georgia, "Times New Roman", serif; font-size:clamp(2.
 .layout-description { padding:16px 18px; border-left:5px solid var(--blue); border-radius:8px; color:#123557; background:#edf7ff; }
 .room h2 { margin:34px 0 6px; font-family:Georgia,serif; font-size:1.7rem; }
 .instruction { margin:0 0 20px; color:var(--muted); }
+.room-directions { margin-top:28px; padding:18px 20px; border:1px solid #b7d8f3; border-radius:14px; background:#f6fbff; }
+.room-directions h2, .room-layout h2 { margin-top:0; }
+.room-directions .room-description { margin-bottom:0; }
+.room-layout { margin-top:30px; }
 .furniture-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .furniture-item { padding:12px; color:var(--ink); background:var(--cream); border:2px solid var(--line); border-radius:16px; }
 .furniture-item:focus-within { border-color:var(--pink-dark); background:#fff5fa; }
@@ -103,6 +107,9 @@ h1 { margin:0; font-family:Georgia, "Times New Roman", serif; font-size:clamp(2.
 .object-name, .object-visual-description { display:block; }
 .object-visual-description { margin-top:6px; font-family:Arial,Helvetica,sans-serif; font-size:.88rem; font-weight:600; line-height:1.45; }
 .describe-room-button { margin:0 0 4px; }
+.arrangement-fields { display:grid; gap:18px; margin:22px 0; }
+.arrangement-field { display:grid; gap:8px; font-weight:800; }
+.arrangement-field select { width:100%; min-height:52px; padding:10px 38px 10px 12px; color:var(--ink); background:#fff; border:2px solid #737d95; border-radius:10px; }
 .action-list { display:grid; gap:8px; margin:22px 0; }
 .action-list label { font-weight:800; }
 .action-list select { width:100%; min-height:52px; padding:10px 38px 10px 12px; color:var(--ink); background:#fff; border:2px solid #737d95; border-radius:10px; }
