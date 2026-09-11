@@ -29,10 +29,10 @@ type Home = {
 };
 type Action = { value: string; label: string; description: string; result: string; nextItem?: string | null; soundAction?: string };
 const furniturePositionOptions = [
-  { id: "north-wall", label: "against the north wall" },
-  { id: "east-wall", label: "against the east wall" },
-  { id: "south-wall", label: "against the south wall" },
-  { id: "west-wall", label: "against the west wall" },
+  { id: "north-wall", label: "against the back wall" },
+  { id: "east-wall", label: "against the right wall" },
+  { id: "south-wall", label: "near the front of the room" },
+  { id: "west-wall", label: "against the left wall" },
   { id: "center", label: "in the center of the room" },
   { id: "doorway", label: "near the doorway" },
   { id: "window", label: "near the window" },
@@ -972,6 +972,8 @@ export default function Home() {
   const [groceryBags, setGroceryBags] = useState<string[]>([]);
   const [ownedFurniture, setOwnedFurniture] = useState<OwnedFurniture[]>([]);
   const [furniturePlacements, setFurniturePlacements] = useState<Record<string, FurniturePlacement>>({});
+  const [arrangingFurniture, setArrangingFurniture] = useState<Furniture | null>(null);
+  const [arrangementRoom, setArrangementRoom] = useState<RoomKey>("living");
   const audioRef = useRef<GameAudio | null>(null);
   const savedGameRef = useRef<any>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -1087,7 +1089,7 @@ export default function Home() {
             ? "You are inside the grocery store."
             : savedRoom === "furnitureStore"
               ? "You are inside the furniture store."
-              : layouts[data.house].positions[savedRoom]?.location;
+              : `You are in the ${homes[data.house].rooms[savedRoom]?.name.toLowerCase() || "home"}.`;
       setSavedHouse(data.house); setHouseChoice(data.house); setMovementAnnouncement(`Game loaded. ${location || layouts[data.house].entrance}`); setScreen("home");
     }
     else setScreen("house");
@@ -1761,6 +1763,19 @@ export default function Home() {
     }, true, "before");
   }
 
+  function openFurnitureArrangement(item: Furniture) {
+    if (!item.instanceId) return;
+    const currentPlacement = allMovableFurniture.find(furniture => furniture.id === item.instanceId);
+    setArrangementRoom(currentPlacement?.room || (room === "entrance" || room === "outside" || room === "groceryStore" || room === "furnitureStore" ? "living" : room));
+    window.setTimeout(() => setArrangingFurniture(item), 0);
+  }
+
+  function chooseFurniturePlacement(position: string) {
+    if (!arrangingFurniture || !position) return;
+    moveFurniture(arrangingFurniture, arrangementRoom, position);
+    setArrangingFurniture(null);
+  }
+
   function executeAction(item: Furniture, actionValue: string) {
     if (!actionValue) return;
     if (item.kind === "frontDoor") {
@@ -1814,23 +1829,8 @@ export default function Home() {
     const target = layout.positions[destination];
     const destinationRoom = currentHome.rooms[destination];
     if (!target || !destinationRoom) return;
-    let direction = "";
-    if (room === "outside") {
-      direction = "through the front door and into the home, then toward the " + destinationRoom.name.toLowerCase();
-      audio().queueObjectOpen("door");
-    } else if (room === "entrance") {
-      direction = (roomDirectionsFromEntrance[savedHouse][destination] || "away from the entrance").toLowerCase();
-    } else {
-      const start = layout.positions[room];
-      if (!start) return;
-      if (target.floor > start.floor) direction = "upstairs";
-      else if (target.floor < start.floor) direction = "downstairs";
-      else {
-        const horizontal = target.x > start.x ? "east" : target.x < start.x ? "west" : "";
-        const vertical = target.y > start.y ? "north" : target.y < start.y ? "south" : "";
-        direction = [vertical, horizontal].filter(Boolean).join(" and ") || "through the doorway";
-      }
-    }
+    const direction = travelDirection(room, destination);
+    if (room === "outside") audio().queueObjectOpen("door");
     const currentFloor = room === "entrance" || room === "outside" ? 1 : layout.positions[room]?.floor ?? 1;
     audio().playMovement(target.floor !== currentFloor);
     setMovementAnnouncement(`You move ${direction} to the ${destinationRoom.name.toLowerCase()}. ${roomDescriptionFor(destination)}`);
@@ -1855,8 +1855,8 @@ export default function Home() {
     let direction = "";
     if (start.floor > 1) direction = "downstairs and toward the front of the home";
     else {
-      const horizontal = start.x > 0 ? "west" : start.x < 0 ? "east" : "";
-      const vertical = start.y > 0 ? "south" : start.y < 0 ? "north" : "";
+      const horizontal = start.x > 0 ? "to the left" : start.x < 0 ? "to the right" : "";
+      const vertical = start.y > 0 ? "back toward the front of the home" : start.y < 0 ? "straight ahead" : "";
       direction = [vertical, horizontal].filter(Boolean).join(" and ") || "toward the front door";
     }
     audio().playMovement(start.floor > 1);
@@ -2007,10 +2007,29 @@ export default function Home() {
     return allMovableFurniture.filter(item => item.room === roomKey && item.id !== excludingId);
   }
 
+  function travelDirection(from: LocationKey, destination: RoomKey) {
+    if (from === "outside") return `through the front door and toward the ${currentHome.rooms[destination]?.name.toLowerCase()}`;
+    if (from === "entrance" || from === "groceryStore" || from === "furnitureStore") return (roomDirectionsFromEntrance[savedHouse]?.[destination] || "inside the home").toLowerCase();
+    const start = layouts[savedHouse].positions[from];
+    const target = layouts[savedHouse].positions[destination];
+    if (!start || !target) return "through the connecting doorway";
+    if (target.floor > start.floor) return "upstairs";
+    if (target.floor < start.floor) return "downstairs";
+    const side = target.x > start.x ? "to the right" : target.x < start.x ? "to the left" : "";
+    const depth = target.y > start.y ? "straight ahead" : target.y < start.y ? "back toward the front of the home" : "";
+    return [depth, side].filter(Boolean).join(" and ") || "through the connecting doorway";
+  }
+
+  function directionsFromRoom(roomKey: RoomKey) {
+    return (Object.keys(currentHome.rooms) as RoomKey[])
+      .filter(destination => destination !== roomKey && currentHome.rooms[destination])
+      .map(destination => `${currentHome.rooms[destination]!.name} is ${travelDirection(roomKey, destination)}.`)
+      .join(" ");
+  }
+
   function roomDescriptionFor(roomKey: RoomKey) {
     const roomData = currentHome.rooms[roomKey];
-    const location = layouts[savedHouse].positions[roomKey]?.location || "";
-    if (!roomData) return location;
+    if (!roomData) return "";
     if (descriptionDetail === "brief") return `${roomData.name}. ${roomData.description}`;
     const movableDescriptions = furnitureInRoom(roomKey).map(item => {
       const placement = placementDescription(item.position, roomKey);
@@ -2025,14 +2044,12 @@ export default function Home() {
       ? [character.laptop !== "No laptop" ? character.laptop : "", character.phone !== "No smartphone" ? character.phone : ""].filter(Boolean)
       : [];
     const technologyDescription = personalTechnology.length ? ` ${readableList(personalTechnology)} ${personalTechnology.length === 1 ? "is" : "are"} also in the room.` : "";
-    return `${location} ${roomData.description} ${movableDescriptions.length ? `Visible furniture: ${movableDescriptions.join("; ")}.` : ""} ${builtInKitchenObjects}${technologyDescription}`.replace(/\s+/g, " ").trim();
+    return `${roomData.description} ${movableDescriptions.length ? `Visible furniture in this room: ${movableDescriptions.join("; ")}.` : ""} ${builtInKitchenObjects}${technologyDescription}`.replace(/\s+/g, " ").trim();
   }
 
   function roomNavigationDescription(roomKey: RoomKey) {
-    const direction = roomDirectionsFromEntrance[savedHouse]?.[roomKey] || "Inside the home";
-    const furnitureNames = furnitureInRoom(roomKey).slice(0, descriptionDetail === "detailed" ? 6 : 3).map(item => item.label);
-    if (descriptionDetail === "brief") return direction;
-    return `${direction}. ${furnitureNames.length ? `Includes ${readableList(furnitureNames)}.` : ""}`.trim();
+    if (room === roomKey) return "You are in this room now";
+    return `From here, move ${travelDirection(room, roomKey)}`;
   }
 
   function objectDescription(item: Furniture) {
@@ -2208,27 +2225,7 @@ export default function Home() {
         <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
         {item.instanceId && <>
           <DropdownMenuLabel>{item.description}</DropdownMenuLabel>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Move or arrange furniture</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent aria-label={`Choose a room for ${item.label}`}>
-              {(Object.keys(currentHome.rooms) as RoomKey[]).map(destination => <DropdownMenuSub key={`furniture-room-${destination}`}>
-                <DropdownMenuSubTrigger>{currentHome.rooms[destination]!.name}</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent aria-label={`Choose a position in ${currentHome.rooms[destination]!.name}`}>
-                  <DropdownMenuLabel>Room positions</DropdownMenuLabel>
-                  {furniturePositionOptions.map(position => <DropdownMenuItem key={position.id} onSelect={() => moveFurniture(item, destination, position.id)}>Place {position.label}</DropdownMenuItem>)}
-                  {furnitureInRoom(destination, item.instanceId).length > 0 && <>
-                    <DropdownMenuLabel>Place relative to another item</DropdownMenuLabel>
-                    {furnitureInRoom(destination, item.instanceId).map(target => <DropdownMenuSub key={`relative-target-${target.id}`}>
-                      <DropdownMenuSubTrigger>{target.label}</DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent aria-label={`Choose how to place ${item.label} relative to ${target.label}`}>
-                        {furnitureRelationOptions.map(relation => <DropdownMenuItem key={relation.id} onSelect={() => moveFurniture(item, destination, `relative|${relation.id}|${target.id}`)}>Place {relation.label} the {target.label.toLowerCase()}</DropdownMenuItem>)}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>)}
-                  </>}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>)}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <DropdownMenuItem onSelect={() => openFurnitureArrangement(item)}>Move or arrange furniture</DropdownMenuItem>
         </>}
         {item.kind === "fridge" ? <>
           <DropdownMenuLabel>Refrigerator items</DropdownMenuLabel>
@@ -2425,9 +2422,16 @@ export default function Home() {
           <h2>Where would you like to go?</h2><p className="instruction">Use the room links below. Your direction and destination will be announced as you move.</p>
         </article> : currentRoom && <article id={`room-${room}`} className="room" aria-labelledby="room-title">
           <p className="eyebrow">Current room</p><h1 id="room-title" ref={headingRef} tabIndex={-1}>{currentRoom.name}</h1>
-          <p className="room-description layout-description">{roomDescriptionFor(room)}</p>
-          <button className="quiet-button describe-room-button" onClick={() => queueAnnouncement(`${savedName}: ${roomDescriptionFor(room)}`)}>Describe this room again</button>
+          <section className="room-directions" aria-labelledby="room-directions-title">
+            <h2 id="room-directions-title">Directions to other rooms</h2>
+            <p className="room-description">{directionsFromRoom(room)}</p>
+          </section>
           {room === "kitchen" && <p className="room-description"><strong>Kitchen item locations:</strong> Kitchen counter: {counterItems.length ? counterItems.map(labelForItem).join(", ") : "empty"}. Range-side prep counter: {prepCounterItems.length ? prepCounterItems.map(labelForItem).join(", ") : "empty"}. Range: {activeCookware ? `${stoveOn ? "on" : "off"}; ${labelForItem(activeCookware)}${finishedMeal ? ` containing finished ${recipes[finishedRecipe || ""]?.cookedLabel || labelForItem(finishedMeal)}` : cookingIngredients.length ? ` containing ${cookingIngredients.map(labelForItem).join(", ")}` : "; empty"}` : "off and empty"}.</p>}
+          <section className="room-layout" aria-labelledby="room-layout-title">
+            <h2 id="room-layout-title">Current room layout</h2>
+            <p className="room-description layout-description">{roomDescriptionFor(room)}</p>
+            <button className="quiet-button describe-room-button" onClick={() => queueAnnouncement(`${savedName}: ${roomDescriptionFor(room)}`)}>Describe this room again</button>
+          </section>
           <h2>Furniture and objects</h2>
           <p className="instruction">Activate an object to open its action menu. Choosing an item performs it and closes the menu.</p>
           <div className="furniture-grid">
@@ -2472,6 +2476,34 @@ export default function Home() {
           })}
         </nav>}
       </section>}
+
+      <Dialog open={Boolean(arrangingFurniture)} onOpenChange={(open) => { if (!open) setArrangingFurniture(null); }}><DialogContent aria-describedby="arrange-furniture-description">
+        <DialogHeader>
+          <DialogTitle>Arrange {arrangingFurniture?.label || "furniture"}</DialogTitle>
+          <DialogDescription id="arrange-furniture-description">Choose a room first. Then choose a position. Selecting a position immediately moves the furniture and closes this window.</DialogDescription>
+        </DialogHeader>
+        <div className="arrangement-fields">
+          <label className="arrangement-field" htmlFor="arrangement-room">
+            <span>Room</span>
+            <select id="arrangement-room" value={arrangementRoom} onChange={(event) => setArrangementRoom(event.target.value as RoomKey)} autoFocus>
+              {(Object.keys(currentHome?.rooms || {}) as RoomKey[]).map(roomKey => <option key={roomKey} value={roomKey}>{currentHome?.rooms[roomKey]?.name}</option>)}
+            </select>
+          </label>
+          <label className="arrangement-field" htmlFor="arrangement-position">
+            <span>Position in {currentHome?.rooms[arrangementRoom]?.name || "room"}</span>
+            <select id="arrangement-position" key={`${arrangingFurniture?.instanceId}-${arrangementRoom}`} value="" onChange={(event) => chooseFurniturePlacement(event.target.value)}>
+              <option value="">Choose a position</option>
+              <optgroup label="Room positions">
+                {furniturePositionOptions.map(position => <option key={position.id} value={position.id}>Place {position.label}</option>)}
+              </optgroup>
+              {furnitureInRoom(arrangementRoom, arrangingFurniture?.instanceId).length > 0 && <optgroup label="Relative to another furniture item">
+                {furnitureInRoom(arrangementRoom, arrangingFurniture?.instanceId).flatMap(target => furnitureRelationOptions.map(relation => <option key={`${target.id}-${relation.id}`} value={`relative|${relation.id}|${target.id}`}>Place {relation.label} the {target.label.toLowerCase()}</option>))}
+              </optgroup>}
+            </select>
+          </label>
+        </div>
+        <DialogFooter><button type="button" className="quiet-button" onClick={() => setArrangingFurniture(null)}>Cancel</button></DialogFooter>
+      </DialogContent></Dialog>
 
       <Dialog open={nameOpen} onOpenChange={setNameOpen}><DialogContent aria-describedby="name-description"><form onSubmit={saveName}>
         <DialogHeader><DialogTitle>What should we call you?</DialogTitle><DialogDescription id="name-description">Enter your character’s name.</DialogDescription></DialogHeader>
