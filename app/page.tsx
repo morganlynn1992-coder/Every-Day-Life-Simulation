@@ -14,6 +14,7 @@ type Character = {
 type RoomKey = "living" | "kitchen" | "dining" | "bedroom" | "bathroom";
 type LocationKey = RoomKey | "entrance" | "outside" | "groceryStore" | "furnitureStore";
 type DayPeriod = "morning" | "afternoon" | "evening" | "night";
+type DescriptionDetail = "brief" | "standard" | "detailed";
 type CarriedWaste = { type: "garbage" | "recycling"; items: string[] } | null;
 type InventoryMenuKey = "dishCabinet" | "pantry" | "silverwareDrawer" | "cookwareCabinet" | "bookshelf";
 type CartItem = { id: string; label: string; price: number; store: "grocery" | "furniture"; itemId?: string };
@@ -36,6 +37,26 @@ const furniturePositionOptions = [
   { id: "doorway", label: "near the doorway" },
   { id: "window", label: "near the window" },
 ] as const;
+const furnitureRelationOptions = [
+  { id: "next-to", label: "next to" },
+  { id: "left-of", label: "to the left of" },
+  { id: "right-of", label: "to the right of" },
+  { id: "across-from", label: "across from" },
+] as const;
+const roomNavigationVisuals: Record<"entrance" | RoomKey, { icon: string; description: string }> = {
+  entrance: { icon: "🚪", description: "Door icon" },
+  living: { icon: "🛋️", description: "Sofa icon" },
+  kitchen: { icon: "🍳", description: "Stove and pan icon" },
+  dining: { icon: "🍽️", description: "Place setting icon" },
+  bedroom: { icon: "🛏️", description: "Bed icon" },
+  bathroom: { icon: "🛁", description: "Bathtub icon" },
+};
+const roomDirectionsFromEntrance: Record<string, Partial<Record<RoomKey, string>>> = {
+  bungalow: { living: "Left of the entrance", kitchen: "Right of the entrance", bedroom: "Straight ahead and down the hallway", bathroom: "Straight ahead, then right down the hallway" },
+  townhouse: { living: "Left of the foyer", kitchen: "Right of the foyer", dining: "Behind the living room", bedroom: "Upstairs and left of the landing", bathroom: "Upstairs and right of the landing" },
+  apartmentOne: { living: "Straight ahead from the entrance", kitchen: "Right of the entrance", bathroom: "Left and down the hallway", bedroom: "At the end of the left hallway" },
+  apartmentTwo: { living: "Ahead and slightly left of the foyer", kitchen: "Right of the foyer", bedroom: "Down the hallway on the left", bathroom: "Down the hallway on the right" },
+};
 const layouts: Record<string, {
   entrance: string;
   positions: Partial<Record<RoomKey, { x: number; y: number; floor: number; location: string }>>;
@@ -940,6 +961,7 @@ export default function Home() {
   const [seatedAtDiningTable, setSeatedAtDiningTable] = useState(false);
   const [makeup, setMakeup] = useState("No makeup is being worn");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [descriptionDetail, setDescriptionDetail] = useState<DescriptionDetail>("standard");
   const [draftingNewGame, setDraftingNewGame] = useState(false);
   const [saveReady, setSaveReady] = useState(false);
   const [saveStatus, setSaveStatus] = useState("Loading saved game…");
@@ -973,6 +995,7 @@ export default function Home() {
     setCharacter({ ...defaults, ...data.character }); setSavedName(data.name || ""); setName(data.name || "");
     setSavedHouse(data.house || ""); setHouseChoice(data.house || "bungalow");
     setMakeup(data.makeup || "No makeup is being worn");
+    if (["brief", "standard", "detailed"].includes(data.descriptionDetail)) setDescriptionDetail(data.descriptionDetail);
     const household = data.household || {};
     setCounterItems(household.counterItems || []); setPrepCounterItems(household.prepCounterItems || []); setCarriedItems(household.carriedItems || []);
     setCoffeeTableItems(household.coffeeTableItems || []); setDiningTableItems(household.diningTableItems || []);
@@ -992,7 +1015,7 @@ export default function Home() {
 
   function savedGameData(house = savedHouse || houseChoice) {
     return {
-      name: savedName, character, house, makeup,
+      name: savedName, character, house, makeup, descriptionDetail,
       household: { room, counterItems, prepCounterItems, carriedItems, coffeeTableItems, diningTableItems, dirtyDishes, cleanDishes, indoorGarbage, indoorRecycling, carriedWaste, householdFunds, shoppingCart, groceryBags, ownedFurniture, furniturePlacements, activeCookware, cookingRecipe, cookingIngredients, cookingStage, stoveOn, finishedMeal, finishedRecipe, assemblyRecipe, assemblyIngredients },
     };
   }
@@ -1021,6 +1044,8 @@ export default function Home() {
     let cancelled = false;
     const soundPreference = localStorage.getItem("everyday-life-sounds");
     if (soundPreference === "off") setSoundEnabled(false);
+    const descriptionPreference = localStorage.getItem("everyday-life-description-detail");
+    if (["brief", "standard", "detailed"].includes(descriptionPreference || "")) setDescriptionDetail(descriptionPreference as DescriptionDetail);
     void (async () => {
       let savedData: any = null;
       try {
@@ -1045,7 +1070,7 @@ export default function Home() {
     if (!saveReady || !savedName || draftingNewGame) return;
     const saveTimer = window.setTimeout(() => { void persistGame(savedGameData()); }, 500);
     return () => window.clearTimeout(saveTimer);
-  }, [saveReady, savedName, savedHouse, houseChoice, character, makeup, room, counterItems, prepCounterItems, carriedItems, coffeeTableItems, diningTableItems, dirtyDishes, cleanDishes, indoorGarbage, indoorRecycling, carriedWaste, householdFunds, shoppingCart, groceryBags, ownedFurniture, furniturePlacements, activeCookware, cookingRecipe, cookingIngredients, cookingStage, stoveOn, finishedMeal, finishedRecipe, assemblyRecipe, assemblyIngredients, draftingNewGame]);
+  }, [saveReady, savedName, savedHouse, houseChoice, character, makeup, descriptionDetail, room, counterItems, prepCounterItems, carriedItems, coffeeTableItems, diningTableItems, dirtyDishes, cleanDishes, indoorGarbage, indoorRecycling, carriedWaste, householdFunds, shoppingCart, groceryBags, ownedFurniture, furniturePlacements, activeCookware, cookingRecipe, cookingIngredients, cookingStage, stoveOn, finishedMeal, finishedRecipe, assemblyRecipe, assemblyIngredients, draftingNewGame]);
   useEffect(() => { if (!nameOpen) headingRef.current?.focus(); }, [screen, nameOpen]);
 
   function startNew() { setDraftingNewGame(true); setCharacter(defaults); setName(""); setSavedHouse(""); setHouseChoice("bungalow"); setCounterItems([]); setPrepCounterItems([]); setCarriedItems([]); setCoffeeTableItems([]); setDiningTableItems([]); setDirtyDishes([]); setCleanDishes([]); setIndoorGarbage([]); setIndoorRecycling([]); setCarriedWaste(null); setHouseholdFunds(10000); setShoppingCart([]); setGroceryBags([]); setOwnedFurniture([]); setFurniturePlacements({}); setActiveCookware(null); setCookingRecipe(null); setCookingIngredients([]); setCookingStage(0); setStoveOn(false); setFinishedMeal(null); setFinishedRecipe(null); setAssemblyRecipe(null); setAssemblyIngredients([]); setSeatedOnSofa(false); setSeatedAtDiningTable(false); setMakeup("No makeup is being worn"); setScreen("create"); }
@@ -1710,15 +1735,28 @@ export default function Home() {
   function moveFurniture(item: Furniture, destination: RoomKey, position: string) {
     if (!item.instanceId) return;
     const destinationName = currentHome.rooms[destination]?.name;
-    const positionName = furniturePositionOptions.find(option => option.id === position)?.label;
+    const positionName = placementDescription(position, destination);
     if (!destinationName || !positionName) return;
-    setOwnedFurniture(current => current.map(furniture => furniture.id === item.instanceId ? { ...furniture, room: destination, position } : furniture));
-    setFurniturePlacements(current => ({ ...current, [item.instanceId!]: { room: destination, position } }));
+    const previousRoom = allMovableFurniture.find(furniture => furniture.id === item.instanceId)?.room;
+    setOwnedFurniture(current => current.map(furniture => {
+      if (furniture.id === item.instanceId) return { ...furniture, room: destination, position };
+      const relation = relativePlacement(furniture.position);
+      return previousRoom !== destination && relation?.targetId === item.instanceId ? { ...furniture, position: "center" } : furniture;
+    }));
+    setFurniturePlacements(current => {
+      const updated = { ...current, [item.instanceId!]: { room: destination, position } };
+      if (previousRoom !== destination) {
+        Object.entries(updated).forEach(([id, placement]) => {
+          if (relativePlacement(placement.position)?.targetId === item.instanceId) updated[id] = { ...placement, position: "center" };
+        });
+      }
+      return updated;
+    });
     announceHousehold("purchasedFurniture", {
       value: `place-furniture:${destination}:${position}`,
       label: `Place ${item.label} ${positionName} in ${destinationName}`,
       description: `Move the furniture into the room and position it exactly where requested.`,
-      result: `The ${item.label} is now ${positionName} in the ${destinationName.toLowerCase()}.`,
+      result: `The ${item.label} is now ${positionName} in the ${destinationName.toLowerCase()}. The new arrangement has been saved.`,
       soundAction: "move-furniture",
     }, true, "before");
   }
@@ -1781,13 +1819,7 @@ export default function Home() {
       direction = "through the front door and into the home, then toward the " + destinationRoom.name.toLowerCase();
       audio().queueObjectOpen("door");
     } else if (room === "entrance") {
-      const entranceDirections: Record<string, Partial<Record<RoomKey, string>>> = {
-        bungalow: { living: "left", kitchen: "right", bedroom: "straight ahead and down the hallway", bathroom: "straight ahead, then right down the hallway" },
-        townhouse: { living: "left", kitchen: "right", dining: "left through the living room", bedroom: "straight ahead and upstairs, then left", bathroom: "straight ahead and upstairs, then right" },
-        apartmentOne: { living: "straight ahead", kitchen: "right", bathroom: "left and down the hallway", bedroom: "left and to the end of the hallway" },
-        apartmentTwo: { living: "ahead and slightly left", kitchen: "right", bedroom: "ahead, then left down the hallway", bathroom: "ahead, then right down the hallway" },
-      };
-      direction = entranceDirections[savedHouse][destination] || "away from the entrance";
+      direction = (roomDirectionsFromEntrance[savedHouse][destination] || "away from the entrance").toLowerCase();
     } else {
       const start = layout.positions[room];
       if (!start) return;
@@ -1801,7 +1833,7 @@ export default function Home() {
     }
     const currentFloor = room === "entrance" || room === "outside" ? 1 : layout.positions[room]?.floor ?? 1;
     audio().playMovement(target.floor !== currentFloor);
-    setMovementAnnouncement(`You move ${direction} to the ${destinationRoom.name.toLowerCase()}. ${target.location}`);
+    setMovementAnnouncement(`You move ${direction} to the ${destinationRoom.name.toLowerCase()}. ${roomDescriptionFor(destination)}`);
     setRoom(destination);
   }
   function moveToEntrance() {
@@ -1949,6 +1981,66 @@ export default function Home() {
     return entries;
   })() : [];
 
+  const allMovableFurniture = [
+    ...baseFurnitureEntries.map(({ id, item, placement }) => ({ id, label: item.label, description: item.description, kind: item.kind, room: placement.room, position: placement.position })),
+    ...ownedFurniture.map(item => ({ ...item, description: `A ${item.label.toLowerCase()} purchased from the furniture store.`, kind: item.label.includes("television") ? "tv" : "purchasedFurniture" })),
+  ];
+
+  function relativePlacement(position: string) {
+    if (!position.startsWith("relative|")) return null;
+    const [, relation, targetId] = position.split("|");
+    return relation && targetId ? { relation, targetId } : null;
+  }
+
+  function placementDescription(position: string, roomKey: RoomKey) {
+    const relative = relativePlacement(position);
+    if (relative) {
+      const relation = furnitureRelationOptions.find(option => option.id === relative.relation)?.label;
+      const target = allMovableFurniture.find(item => item.id === relative.targetId && item.room === roomKey);
+      if (relation && target) return `${relation} the ${target.label.toLowerCase()}`;
+      return "in the center of the room";
+    }
+    return furniturePositionOptions.find(option => option.id === position)?.label || "in the room";
+  }
+
+  function furnitureInRoom(roomKey: RoomKey, excludingId?: string) {
+    return allMovableFurniture.filter(item => item.room === roomKey && item.id !== excludingId);
+  }
+
+  function roomDescriptionFor(roomKey: RoomKey) {
+    const roomData = currentHome.rooms[roomKey];
+    const location = layouts[savedHouse].positions[roomKey]?.location || "";
+    if (!roomData) return location;
+    if (descriptionDetail === "brief") return `${roomData.name}. ${roomData.description}`;
+    const movableDescriptions = furnitureInRoom(roomKey).map(item => {
+      const placement = placementDescription(item.position, roomKey);
+      return descriptionDetail === "detailed"
+        ? `${item.label}, ${placement}. ${item.description}`
+        : `${item.label}, ${placement}`;
+    });
+    const builtInKitchenObjects = roomKey === "kitchen"
+      ? "The kitchen also has a working counter, a small prep counter beside the range, garbage and recycling bins, a dish cabinet, cookware cabinet, pantry, silverware drawer, and coffee machine."
+      : "";
+    const personalTechnology = roomKey === "living"
+      ? [character.laptop !== "No laptop" ? character.laptop : "", character.phone !== "No smartphone" ? character.phone : ""].filter(Boolean)
+      : [];
+    const technologyDescription = personalTechnology.length ? ` ${readableList(personalTechnology)} ${personalTechnology.length === 1 ? "is" : "are"} also in the room.` : "";
+    return `${location} ${roomData.description} ${movableDescriptions.length ? `Visible furniture: ${movableDescriptions.join("; ")}.` : ""} ${builtInKitchenObjects}${technologyDescription}`.replace(/\s+/g, " ").trim();
+  }
+
+  function roomNavigationDescription(roomKey: RoomKey) {
+    const direction = roomDirectionsFromEntrance[savedHouse]?.[roomKey] || "Inside the home";
+    const furnitureNames = furnitureInRoom(roomKey).slice(0, descriptionDetail === "detailed" ? 6 : 3).map(item => item.label);
+    if (descriptionDetail === "brief") return direction;
+    return `${direction}. ${furnitureNames.length ? `Includes ${readableList(furnitureNames)}.` : ""}`.trim();
+  }
+
+  function objectDescription(item: Furniture) {
+    if (descriptionDetail === "brief") return "";
+    if (descriptionDetail === "detailed") return item.description;
+    return item.description.split(/(?<=[.!?])\s/)[0];
+  }
+
   function toggleSounds(enabled: boolean) {
     setSoundEnabled(enabled);
     localStorage.setItem("everyday-life-sounds", enabled ? "on" : "off");
@@ -1965,6 +2057,21 @@ export default function Home() {
   const soundControl = <label className="sound-control">
     <input type="checkbox" checked={soundEnabled} onChange={(event) => toggleSounds(event.target.checked)} />
     <span>Sound effects</span>
+  </label>;
+
+  function updateDescriptionDetail(detail: DescriptionDetail) {
+    setDescriptionDetail(detail);
+    localStorage.setItem("everyday-life-description-detail", detail);
+    queueAnnouncement(`Description detail changed to ${detail}.`);
+  }
+
+  const descriptionControl = <label className="description-control">
+    <span>Description detail</span>
+    <select value={descriptionDetail} onChange={(event) => updateDescriptionDetail(event.target.value as DescriptionDetail)}>
+      <option value="brief">Brief</option>
+      <option value="standard">Standard</option>
+      <option value="detailed">Detailed</option>
+    </select>
   </label>;
 
   function optionsForField(field: (typeof fields)[number]) {
@@ -2092,7 +2199,10 @@ export default function Home() {
         : `${item.label} actions`;
     return <DropdownMenu open={item.kind === "fridge" ? fridgeMenuOpen : undefined} onOpenChange={(open) => { if (item.kind === "fridge") setFridgeMenuOpen(open); if (open && item.kind !== "kitchenSink" && item.kind !== "bathSink") audio().queueObjectOpen(item.kind); }}>
       <DropdownMenuTrigger asChild>
-        <button className="furniture-button">{item.label}</button>
+        <button className="furniture-button">
+          <span className="object-name">{item.label}</span>
+          {objectDescription(item) && <span className="object-visual-description">{objectDescription(item)}</span>}
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-[70vh] min-w-64 overflow-y-auto" align="start" aria-label={menuLabel}>
         <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
@@ -2104,7 +2214,17 @@ export default function Home() {
               {(Object.keys(currentHome.rooms) as RoomKey[]).map(destination => <DropdownMenuSub key={`furniture-room-${destination}`}>
                 <DropdownMenuSubTrigger>{currentHome.rooms[destination]!.name}</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent aria-label={`Choose a position in ${currentHome.rooms[destination]!.name}`}>
+                  <DropdownMenuLabel>Room positions</DropdownMenuLabel>
                   {furniturePositionOptions.map(position => <DropdownMenuItem key={position.id} onSelect={() => moveFurniture(item, destination, position.id)}>Place {position.label}</DropdownMenuItem>)}
+                  {furnitureInRoom(destination, item.instanceId).length > 0 && <>
+                    <DropdownMenuLabel>Place relative to another item</DropdownMenuLabel>
+                    {furnitureInRoom(destination, item.instanceId).map(target => <DropdownMenuSub key={`relative-target-${target.id}`}>
+                      <DropdownMenuSubTrigger>{target.label}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent aria-label={`Choose how to place ${item.label} relative to ${target.label}`}>
+                        {furnitureRelationOptions.map(relation => <DropdownMenuItem key={relation.id} onSelect={() => moveFurniture(item, destination, `relative|${relation.id}|${target.id}`)}>Place {relation.label} the {target.label.toLowerCase()}</DropdownMenuItem>)}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>)}
+                  </>}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>)}
             </DropdownMenuSubContent>
@@ -2263,7 +2383,7 @@ export default function Home() {
       </section>}
 
       {screen === "home" && currentHome && <section className="game-panel" aria-labelledby="room-title">
-        <header className="game-header"><div><p className="eyebrow">{currentHome.name}</p><p className="player-name">Playing as {savedName} · Household account: ${householdFunds}</p></div><div className="game-controls">{soundControl}<button className="quiet-button" onClick={saveGame}>Save game</button><button className="quiet-button" onClick={() => setScreen("menu")}>Main menu</button></div></header>
+        <header className="game-header"><div><p className="eyebrow">{currentHome.name}</p><p className="player-name">Playing as {savedName} · Household account: ${householdFunds}</p></div><div className="game-controls">{descriptionControl}{soundControl}<button className="quiet-button" onClick={saveGame}>Save game</button><button className="quiet-button" onClick={() => setScreen("menu")}>Main menu</button></div></header>
         <div className="movement-status" role="status" aria-live="assertive" aria-atomic="true">{movementAnnouncement}</div>
         <div className="movement-status" role="alert" aria-live="assertive" aria-atomic="true">{actionAnnouncement}</div>
         {room === "groceryStore" ? <article id="room-grocery-store" className="room" aria-labelledby="room-title">
@@ -2305,8 +2425,8 @@ export default function Home() {
           <h2>Where would you like to go?</h2><p className="instruction">Use the room links below. Your direction and destination will be announced as you move.</p>
         </article> : currentRoom && <article id={`room-${room}`} className="room" aria-labelledby="room-title">
           <p className="eyebrow">Current room</p><h1 id="room-title" ref={headingRef} tabIndex={-1}>{currentRoom.name}</h1>
-          <p className="room-description layout-description">{layouts[savedHouse].positions[room]?.location}</p>
-          <p className="room-description">{currentRoom.description}</p>
+          <p className="room-description layout-description">{roomDescriptionFor(room)}</p>
+          <button className="quiet-button describe-room-button" onClick={() => queueAnnouncement(`${savedName}: ${roomDescriptionFor(room)}`)}>Describe this room again</button>
           {room === "kitchen" && <p className="room-description"><strong>Kitchen item locations:</strong> Kitchen counter: {counterItems.length ? counterItems.map(labelForItem).join(", ") : "empty"}. Range-side prep counter: {prepCounterItems.length ? prepCounterItems.map(labelForItem).join(", ") : "empty"}. Range: {activeCookware ? `${stoveOn ? "on" : "off"}; ${labelForItem(activeCookware)}${finishedMeal ? ` containing finished ${recipes[finishedRecipe || ""]?.cookedLabel || labelForItem(finishedMeal)}` : cookingIngredients.length ? ` containing ${cookingIngredients.map(labelForItem).join(", ")}` : "; empty"}` : "off and empty"}.</p>}
           <h2>Furniture and objects</h2>
           <p className="instruction">Activate an object to open its action menu. Choosing an item performs it and closes the menu.</p>
@@ -2320,14 +2440,14 @@ export default function Home() {
             {room === "kitchen" && <div className="furniture-item">{objectMenu({ label: "Silverware drawer", kind: "silverwareDrawer", description: "A drawer organized with forks, spoons, knives, and teaspoons." })}</div>}
             {room === "kitchen" && <div className="furniture-item">{objectMenu({ label: "Coffee machine", kind: "coffeeMachine", description: "A coffee machine beside clean mugs, sugar, and creamer." })}</div>}
             {baseFurnitureEntries.filter(entry => entry.placement.room === room).map(({ id, item, placement }) => {
-              const positionName = furniturePositionOptions.find(option => option.id === placement.position)?.label || "in the room";
+              const positionName = placementDescription(placement.position, room);
               const trackedItem = item.kind === "stove" && activeCookware ? { ...item, label: `${labelForItem(activeCookware)} on ${item.label}` } : item;
               return <div className="furniture-item" key={id}>{objectMenu({ ...trackedItem, instanceId: id, description: `${item.description} It is ${positionName}.` })}</div>;
             })}
             {room === "living" && character.laptop !== "No laptop" && <div className="furniture-item">{objectMenu({ label: character.laptop, kind: "laptop", description: "Your personal laptop is charged and ready to use." })}</div>}
             {room === "living" && character.phone !== "No smartphone" && <div className="furniture-item">{objectMenu({ label: character.phone, kind: "phone", description: "Your personal cell phone is charged and connected." })}</div>}
             {ownedFurniture.filter(furniture => furniture.room === room).map(furniture => {
-              const positionName = furniturePositionOptions.find(option => option.id === furniture.position)?.label || "in the room";
+              const positionName = placementDescription(furniture.position, room);
               return <div className="furniture-item" key={furniture.id}>{objectMenu({ label: furniture.label, kind: furniture.label.includes("television") ? "tv" : "purchasedFurniture", description: `A furniture-store purchase ${positionName} in the ${currentRoom.name.toLowerCase()}.`, instanceId: furniture.id })}</div>;
             })}
           </div>
@@ -2338,10 +2458,17 @@ export default function Home() {
           <a href="#room-furniture-store" aria-current={room === "furnitureStore" ? "page" : undefined} onClick={(event) => { event.preventDefault(); travelToStore("furnitureStore"); }}>Furniture store</a>
           {["Job", "Electronics store"].map(destination => <a key={destination} href="#room-outside" onClick={(event) => { event.preventDefault(); previewDestination(destination); }}>{destination}</a>)}
         </nav> : <nav className="room-nav" aria-label="Move to another room">
-          <a href="#room-entrance" aria-current={room === "entrance" ? "page" : undefined} onClick={(e) => { e.preventDefault(); moveToEntrance(); }}>Front entrance</a>
+          <a href="#room-entrance" aria-current={room === "entrance" ? "page" : undefined} onClick={(e) => { e.preventDefault(); moveToEntrance(); }}>
+            <span className="room-nav-icon" aria-hidden="true">{roomNavigationVisuals.entrance.icon}</span>
+            <span className="room-nav-copy"><span className="room-nav-name">Front entrance</span><span className="room-nav-description">{roomNavigationVisuals.entrance.description}. Connects the home to the neighborhood.</span></span>
+          </a>
           {(Object.keys(currentHome.rooms) as RoomKey[]).map(key => {
             const destination = currentHome.rooms[key];
-            return destination ? <a key={key} href={`#room-${key}`} aria-current={room === key ? "page" : undefined} onClick={(e) => { e.preventDefault(); moveTo(key); }}>{destination.name}</a> : null;
+            const visual = roomNavigationVisuals[key];
+            return destination ? <a key={key} href={`#room-${key}`} aria-current={room === key ? "page" : undefined} onClick={(e) => { e.preventDefault(); moveTo(key); }}>
+              <span className="room-nav-icon" aria-hidden="true">{visual.icon}</span>
+              <span className="room-nav-copy"><span className="room-nav-name">{destination.name}</span><span className="room-nav-description">{visual.description}. {roomNavigationDescription(key)}</span></span>
+            </a> : null;
           })}
         </nav>}
       </section>}
