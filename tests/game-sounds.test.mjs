@@ -267,13 +267,13 @@ test("lets players place purchased and existing furniture by room and position",
 
   assert.match(page, /type FurniturePlacement = \{ room: RoomKey; position: string \}/);
   assert.match(page, /const furniturePositionOptions/);
-  for (const position of ["north wall", "east wall", "south wall", "west wall", "center of the room", "near the doorway", "near the window"]) assert.match(page, new RegExp(position));
+  for (const position of ["back wall", "right wall", "front of the room", "left wall", "center of the room", "near the doorway", "near the window"]) assert.match(page, new RegExp(position));
   assert.match(page, /function moveFurniture\(item: Furniture, destination: RoomKey, position: string\)/);
   assert.match(page, /setOwnedFurniture\(current => current\.map/);
   assert.match(page, /setFurniturePlacements\(current =>/);
   assert.match(page, /Move or arrange furniture/);
-  assert.match(page, /Choose a room for \$\{item\.label\}/);
-  assert.match(page, /Choose a position in \$\{currentHome\.rooms\[destination\]!\.name\}/);
+  assert.match(page, /id="arrangement-room"/);
+  assert.match(page, /id="arrangement-position"/);
   assert.match(page, /baseFurnitureEntries\.filter\(entry => entry\.placement\.room === room\)/);
   assert.match(page, /ownedFurniture\.filter\(furniture => furniture\.room === room\)/);
   assert.match(page, /furniturePlacements, activeCookware/);
